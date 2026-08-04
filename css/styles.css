@@ -969,3 +969,132 @@ select:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- lock / pause / map --- */
+.lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(239, 192, 20, 0.16), transparent 50%),
+    var(--bg);
+}
+
+.lock-card {
+  width: min(360px, 100%);
+  background: var(--surface);
+  border-radius: 24px;
+  padding: 28px 20px 22px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.lock-kicker {
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lock-card h2 {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.25rem;
+  margin: 8px 0 18px;
+}
+
+.lock-dots {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.lock-dots span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--muted);
+}
+
+.lock-dots span.filled {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.lock-error {
+  color: var(--red);
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.pin-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pin-pad button {
+  height: 56px;
+  border: none;
+  border-radius: 16px;
+  background: var(--surface2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pin-pad button:active {
+  transform: scale(0.97);
+}
+
+.pin-pad .pin-ok {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.pin-pad .pin-muted {
+  color: var(--muted);
+}
+
+.pause-banner {
+  background: color-mix(in srgb, var(--blue) 18%, var(--surface));
+  color: var(--blue);
+  border: 1px solid color-mix(in srgb, var(--blue) 35%, transparent);
+  border-radius: 14px;
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.shift-badge.paused {
+  background: var(--blue);
+  color: #041018;
+  animation: none;
+}
+
+.secondary-actions {
+  margin-bottom: 14px;
+}
+
+.track-canvas {
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  display: block;
+  background: var(--surface2);
+}
+
+.map-card h2 {
+  margin-bottom: 10px;
+}

@@ -13,6 +13,31 @@
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+  <div id="lock-screen" class="lock-screen hidden">
+    <div class="lock-card">
+      <p class="lock-kicker">Taxi Смена</p>
+      <h2 id="lock-title">Введите пин-код</h2>
+      <div id="lock-dots" class="lock-dots">
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <p id="lock-error" class="lock-error hidden">Неверный код</p>
+      <div class="pin-pad" id="pin-pad">
+        <button type="button" data-pin="1">1</button>
+        <button type="button" data-pin="2">2</button>
+        <button type="button" data-pin="3">3</button>
+        <button type="button" data-pin="4">4</button>
+        <button type="button" data-pin="5">5</button>
+        <button type="button" data-pin="6">6</button>
+        <button type="button" data-pin="7">7</button>
+        <button type="button" data-pin="8">8</button>
+        <button type="button" data-pin="9">9</button>
+        <button type="button" data-pin="clear" class="pin-muted">C</button>
+        <button type="button" data-pin="0">0</button>
+        <button type="button" data-pin="ok" class="pin-ok">OK</button>
+      </div>
+    </div>
+  </div>
+
   <div id="app">
     <header class="header">
       <div class="brand">
@@ -21,6 +46,7 @@
       </div>
       <div class="header-actions">
         <div id="shift-badge" class="shift-badge hidden">В смене</div>
+        <button id="btn-pin" class="icon-btn" type="button" aria-label="Пин-код" title="Пин-код">🔒</button>
         <button id="btn-theme" class="icon-btn" type="button" aria-label="Тема" title="Тема">◐</button>
       </div>
     </header>
@@ -46,6 +72,8 @@
         </div>
 
         <div id="active-shift" class="hidden">
+          <div id="pause-banner" class="pause-banner hidden">Перерыв — GPS и время на паузе</div>
+
           <div class="hero-card">
             <div class="hero-label">Чистыми сейчас</div>
             <div id="live-net" class="hero-value">0 ₽</div>
@@ -85,6 +113,11 @@
             <button id="btn-open-expense" class="btn btn-secondary action-btn" type="button">+ Расход</button>
           </div>
 
+          <div class="action-row secondary-actions">
+            <button id="btn-pause" class="btn btn-secondary action-btn" type="button">Перерыв</button>
+            <button id="btn-show-map" class="btn btn-secondary action-btn" type="button">Карта</button>
+          </div>
+
           <div class="card soft">
             <div class="card-head">
               <h2>Последние поездки</h2>
@@ -110,6 +143,11 @@
           <p class="summary-caption">чистыми</p>
           <div id="summary-grid" class="summary-grid"></div>
           <div id="summary-goal" class="summary-goal hidden"></div>
+          <div class="card soft map-card">
+            <h2>Маршрут смены</h2>
+            <canvas id="summary-map" class="track-canvas" width="400" height="220"></canvas>
+            <p id="summary-map-empty" class="empty-state hidden">Мало GPS-точек для карты</p>
+          </div>
           <button id="btn-summary-done" class="btn btn-primary btn-block btn-lg" type="button">Готово</button>
         </div>
       </section>
@@ -141,7 +179,6 @@
     </main>
   </div>
 
-  <!-- Trip modal -->
   <div id="modal-trip" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-backdrop" data-close="modal-trip"></div>
     <div class="modal-sheet">
@@ -173,7 +210,6 @@
     </div>
   </div>
 
-  <!-- Expense modal -->
   <div id="modal-expense" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-backdrop" data-close="modal-expense"></div>
     <div class="modal-sheet">
@@ -200,13 +236,41 @@
     </div>
   </div>
 
-  <!-- History detail modal -->
   <div id="modal-history" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-backdrop" data-close="modal-history"></div>
     <div class="modal-sheet modal-sheet-tall">
       <div class="modal-handle"></div>
       <div id="history-detail"></div>
       <button type="button" class="btn btn-secondary btn-block" data-close="modal-history">Закрыть</button>
+    </div>
+  </div>
+
+  <div id="modal-map" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="modal-map"></div>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2>Маршрут смены</h2>
+      <canvas id="live-map" class="track-canvas" width="400" height="260"></canvas>
+      <p id="live-map-empty" class="empty-state hidden">Пока мало точек — поезжай, карта появится</p>
+      <p class="hint">Карта без интернета: линия по GPS. На перерыве GPS не крутится — батарея отдыхает.</p>
+      <button type="button" class="btn btn-secondary btn-block" data-close="modal-map">Закрыть</button>
+    </div>
+  </div>
+
+  <div id="modal-pin" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="modal-pin"></div>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2>Пин-код</h2>
+      <p class="hint" id="pin-hint">4 цифры. Защита при открытии приложения.</p>
+      <label>Новый пин-код</label>
+      <input type="password" id="pin-new" inputmode="numeric" maxlength="4" placeholder="••••" pattern="[0-9]*">
+      <label>Ещё раз</label>
+      <input type="password" id="pin-confirm" inputmode="numeric" maxlength="4" placeholder="••••" pattern="[0-9]*">
+      <div class="modal-actions">
+        <button type="button" id="btn-pin-remove" class="btn btn-secondary">Снять</button>
+        <button type="button" id="btn-pin-save" class="btn btn-primary">Сохранить</button>
+      </div>
     </div>
   </div>
 

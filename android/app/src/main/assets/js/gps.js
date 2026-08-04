@@ -20,6 +20,7 @@ class GpsTracker {
     this.onError = null;
     this.minAccuracy = 80;
     this.minMoveM = 15;
+    this.paused = false;
   }
 
   async start(shiftId, existingKm = 0) {
@@ -30,6 +31,7 @@ class GpsTracker {
     this.shiftId = shiftId;
     this.totalKm = existingKm;
     this.lastPoint = null;
+    this.paused = false;
 
     const points = await TaxiDB.getGpsPoints(shiftId);
     if (points.length) {
@@ -37,24 +39,45 @@ class GpsTracker {
       this.lastPoint = { lat: last.lat, lng: last.lng };
     }
 
-    return new Promise((resolve, reject) => {
-      this.watchId = navigator.geolocation.watchPosition(
-        (pos) => this.handlePosition(pos),
-        (err) => {
-          this.onError?.(err);
-          if (!this.lastPoint) reject(err);
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 5000,
-          timeout: 20000
-        }
-      );
-      resolve();
-    });
+    this._watch();
+    return Promise.resolve();
+  }
+
+  _watch() {
+    if (this.watchId !== null || this.paused || !this.shiftId) return;
+
+    this.watchId = navigator.geolocation.watchPosition(
+      (pos) => this.handlePosition(pos),
+      (err) => this.onError?.(err),
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 20000
+      }
+    );
+  }
+
+  _clearWatch() {
+    if (this.watchId !== null) {
+      navigator.geolocation.clearWatch(this.watchId);
+      this.watchId = null;
+    }
+  }
+
+  pause() {
+    this.paused = true;
+    this._clearWatch();
+  }
+
+  resume() {
+    if (!this.shiftId) return;
+    this.paused = false;
+    this._watch();
   }
 
   async handlePosition(pos) {
+    if (this.paused || !this.shiftId) return;
+
     const { latitude: lat, longitude: lng, accuracy } = pos.coords;
     if (accuracy > this.minAccuracy) return;
 
@@ -78,16 +101,18 @@ class GpsTracker {
   }
 
   stop() {
-    if (this.watchId !== null) {
-      navigator.geolocation.clearWatch(this.watchId);
-      this.watchId = null;
-    }
+    this._clearWatch();
+    this.paused = false;
     this.shiftId = null;
     this.lastPoint = null;
   }
 
   getDistance() {
     return this.totalKm;
+  }
+
+  isTracking() {
+    return this.watchId !== null;
   }
 }
 

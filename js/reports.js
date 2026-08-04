@@ -1,9 +1,15 @@
 function formatMoney(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '—';
   return new Intl.NumberFormat('ru-RU', {
     style: 'currency',
     currency: 'RUB',
     maximumFractionDigits: 0
   }).format(n || 0);
+}
+
+function formatPerHour(n) {
+  if (n === null || n === undefined) return '—';
+  return formatMoney(n);
 }
 
 function formatKm(n) {
@@ -165,6 +171,7 @@ async function buildPeriodReport(from, to) {
 
 window.TaxiReports = {
   formatMoney,
+  formatPerHour,
   formatKm,
   formatDuration,
   formatDate,

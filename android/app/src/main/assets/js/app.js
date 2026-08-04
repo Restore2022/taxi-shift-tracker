@@ -3,9 +3,11 @@ let activeShift = null;
 let liveTimer = null;
 let currentPeriod = 'today';
 let pendingSummary = null;
+let unlocked = false;
+let pinBuffer = '';
+let pinMode = 'unlock'; // unlock | setup
 
 const SETTINGS_KEY = 'taxiSmenaSettings';
-const QUICK_AMOUNTS = [150, 200, 250, 300, 500, 550];
 
 function $(sel) {
   return document.querySelector(sel);
@@ -25,19 +27,55 @@ function saveSettings(patch) {
   return next;
 }
 
+function hashPin(pin) {
+  let h = 2166136261;
+  const s = `taxi-smena-v1:${pin}`;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+
 function applyTheme(theme) {
   const value = theme === 'light' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', value);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) {
-    meta.content = value === 'light' ? '#eef2f6' : '#12161c';
-  }
+  if (meta) meta.content = value === 'light' ? '#eef2f6' : '#12161c';
   saveSettings({ theme: value });
 }
 
 function vibrate(pattern = [30, 40, 30]) {
   try {
     if (navigator.vibrate) navigator.vibrate(pattern);
+  } catch {
+    /* ignore */
+  }
+}
+
+function playCoinSound() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = playCoinSound._ctx || new Ctx();
+    playCoinSound._ctx = ctx;
+    if (ctx.state === 'suspended') ctx.resume();
+
+    const now = ctx.currentTime;
+    const tones = [988, 1318, 1760];
+    tones.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.12, now + 0.01 + i * 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18 + i * 0.05);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.04);
+      osc.stop(now + 0.22 + i * 0.05);
+    });
   } catch {
     /* ignore */
   }
@@ -69,13 +107,108 @@ function switchTab(name) {
   if (name === 'history') renderHistory();
 }
 
+function isOnBreak() {
+  return Boolean(activeShift?.pauseStartedAt);
+}
+
 async function init() {
   await TaxiDB.openDB();
   const settings = loadSettings();
   applyTheme(settings.theme || 'dark');
   if (settings.goal) $('#goal-input').value = settings.goal;
   bindEvents();
-  await refreshShiftUI();
+
+  if (settings.pinHash) {
+    showLockScreen('unlock');
+  } else {
+    unlocked = true;
+    await refreshShiftUI();
+  }
+}
+
+function showLockScreen(mode) {
+  pinMode = mode;
+  pinBuffer = '';
+  unlocked = false;
+  $('#lock-screen').classList.remove('hidden');
+  $('#lock-title').textContent = mode === 'setup' ? 'Придумайте пин-код' : 'Введите пин-код';
+  $('#lock-error').classList.add('hidden');
+  updateLockDots();
+}
+
+function hideLockScreen() {
+  $('#lock-screen').classList.add('hidden');
+  unlocked = true;
+  pinBuffer = '';
+}
+
+function updateLockDots() {
+  $('#lock-dots').querySelectorAll('span').forEach((dot, i) => {
+    dot.classList.toggle('filled', i < pinBuffer.length);
+  });
+}
+
+async function handlePinInput(key) {
+  $('#lock-error').classList.add('hidden');
+
+  if (key === 'clear') {
+    pinBuffer = '';
+    updateLockDots();
+    return;
+  }
+
+  if (key === 'ok') {
+    await submitPin();
+    return;
+  }
+
+  if (!/^\d$/.test(key) || pinBuffer.length >= 4) return;
+  pinBuffer += key;
+  updateLockDots();
+  if (pinBuffer.length === 4) await submitPin();
+}
+
+async function submitPin() {
+  if (pinBuffer.length !== 4) return;
+  const settings = loadSettings();
+
+  if (pinMode === 'unlock') {
+    if (hashPin(pinBuffer) === settings.pinHash) {
+      hideLockScreen();
+      vibrate(20);
+      await refreshShiftUI();
+    } else {
+      pinBuffer = '';
+      updateLockDots();
+      $('#lock-error').classList.remove('hidden');
+      vibrate([40, 40, 40]);
+    }
+    return;
+  }
+
+  // setup confirmation stored temporarily
+  if (!submitPin._pending) {
+    submitPin._pending = pinBuffer;
+    pinBuffer = '';
+    updateLockDots();
+    $('#lock-title').textContent = 'Повторите пин-код';
+    return;
+  }
+
+  if (submitPin._pending === pinBuffer) {
+    saveSettings({ pinHash: hashPin(pinBuffer) });
+    submitPin._pending = null;
+    hideLockScreen();
+    showToast('Пин-код установлен');
+    await refreshShiftUI();
+  } else {
+    submitPin._pending = null;
+    pinBuffer = '';
+    updateLockDots();
+    $('#lock-title').textContent = 'Придумайте пин-код';
+    $('#lock-error').textContent = 'Коды не совпали';
+    $('#lock-error').classList.remove('hidden');
+  }
 }
 
 function bindEvents() {
@@ -89,11 +222,55 @@ function bindEvents() {
     vibrate(20);
   });
 
+  $('#btn-pin').addEventListener('click', () => {
+    const settings = loadSettings();
+    $('#pin-new').value = '';
+    $('#pin-confirm').value = '';
+    $('#pin-hint').textContent = settings.pinHash
+      ? 'Пин уже стоит. Можно сменить или снять.'
+      : '4 цифры. Защита при открытии приложения.';
+    openModal('modal-pin');
+  });
+
+  $('#btn-pin-save').addEventListener('click', () => {
+    const a = $('#pin-new').value.trim();
+    const b = $('#pin-confirm').value.trim();
+    if (!/^\d{4}$/.test(a)) {
+      showToast('Нужны ровно 4 цифры');
+      return;
+    }
+    if (a !== b) {
+      showToast('Коды не совпали');
+      return;
+    }
+    saveSettings({ pinHash: hashPin(a) });
+    closeModal('modal-pin');
+    showToast('Пин-код сохранён');
+  });
+
+  $('#btn-pin-remove').addEventListener('click', () => {
+    saveSettings({ pinHash: null });
+    closeModal('modal-pin');
+    showToast('Пин-код снят');
+  });
+
+  $('#pin-pad').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-pin]');
+    if (!btn) return;
+    handlePinInput(btn.dataset.pin);
+  });
+
   $('#btn-start-shift').addEventListener('click', startShiftHandler);
   $('#btn-end-shift').addEventListener('click', endShiftHandler);
   $('#btn-summary-done').addEventListener('click', finishSummary);
+  $('#btn-pause').addEventListener('click', togglePauseHandler);
+  $('#btn-show-map').addEventListener('click', showLiveMap);
 
   $('#btn-open-trip').addEventListener('click', () => {
+    if (isOnBreak()) {
+      showToast('Сначала завершите перерыв');
+      return;
+    }
     $('#trip-amount').value = '';
     openModal('modal-trip');
     setTimeout(() => $('#trip-amount').focus(), 150);
@@ -133,7 +310,7 @@ function bindEvents() {
 
   tracker.onUpdate = (km) => {
     $('#live-km').textContent = TaxiReports.formatKm(km);
-    setGpsStatus('active', 'GPS: отслеживание активно');
+    if (!isOnBreak()) setGpsStatus('active', 'GPS: отслеживание активно');
   };
 
   tracker.onError = (err) => {
@@ -190,32 +367,71 @@ async function requestGeoPermission() {
   });
 }
 
+async function togglePauseHandler() {
+  if (!activeShift) return;
+
+  if (isOnBreak()) {
+    const extra = Date.now() - activeShift.pauseStartedAt;
+    const pausedMs = (activeShift.pausedMs || 0) + extra;
+    activeShift = await TaxiDB.updateShiftMeta(activeShift.id, {
+      pausedMs,
+      pauseStartedAt: null
+    });
+    tracker.resume();
+    setGpsStatus('active', 'GPS: отслеживание активно');
+    showToast('Смена продолжена');
+    vibrate(20);
+  } else {
+    activeShift = await TaxiDB.updateShiftMeta(activeShift.id, {
+      pauseStartedAt: Date.now()
+    });
+    tracker.pause();
+    setGpsStatus('', 'GPS: пауза на перерыве');
+    showToast('Перерыв');
+    vibrate([30, 40]);
+  }
+
+  updatePauseUI();
+  updateLiveTime();
+}
+
+function updatePauseUI() {
+  const onBreak = isOnBreak();
+  $('#pause-banner').classList.toggle('hidden', !onBreak);
+  $('#btn-pause').textContent = onBreak ? 'Продолжить' : 'Перерыв';
+  $('#shift-badge').textContent = onBreak ? 'Перерыв' : 'В смене';
+  $('#shift-badge').classList.toggle('paused', onBreak);
+}
+
 async function endShiftHandler() {
   if (!activeShift) return;
 
-  const stats = await TaxiDB.getShiftStats(activeShift.id);
-  const km = activeShift.distanceKm || tracker.getDistance();
+  const shiftId = activeShift.id;
   const goal = activeShift.goal || loadSettings().goal || 0;
+  const km = activeShift.distanceKm || tracker.getDistance();
+
+  tracker.stop();
+  await TaxiDB.endShift(shiftId);
+  const stats = await TaxiDB.getShiftStats(shiftId);
 
   pendingSummary = {
     ...stats,
     distanceKm: km,
     goal,
+    shiftId,
     startedAt: activeShift.startedAt,
     endedAt: Date.now()
   };
 
-  tracker.stop();
-  await TaxiDB.endShift(activeShift.id);
   clearInterval(liveTimer);
   liveTimer = null;
   activeShift = null;
 
   vibrate([40, 50, 40]);
-  showShiftSummary(pendingSummary);
+  await showShiftSummary(pendingSummary);
 }
 
-function showShiftSummary(summary) {
+async function showShiftSummary(summary) {
   $('#no-shift').classList.add('hidden');
   $('#active-shift').classList.add('hidden');
   $('#shift-badge').classList.add('hidden');
@@ -232,7 +448,7 @@ function showShiftSummary(summary) {
     <div class="summary-item"><span>Приложение</span><strong>${TaxiReports.formatMoney(summary.byPayment.app)}</strong></div>
     <div class="summary-item"><span>Комиссия</span><strong>−${TaxiReports.formatMoney(summary.commission)}</strong></div>
     <div class="summary-item"><span>Расходы</span><strong>−${TaxiReports.formatMoney(summary.totalExpenses)}</strong></div>
-    <div class="summary-item"><span>Чистыми / час</span><strong>${TaxiReports.formatMoney(summary.netPerHour)}</strong></div>
+    <div class="summary-item"><span>Чистыми / час</span><strong>${TaxiReports.formatPerHour(summary.netPerHour)}</strong></div>
   `;
 
   const goalEl = $('#summary-goal');
@@ -244,6 +460,11 @@ function showShiftSummary(summary) {
       : `До цели ${TaxiReports.formatMoney(summary.goal - summary.net)}`;
   } else {
     goalEl.classList.add('hidden');
+  }
+
+  if (summary.shiftId) {
+    const points = await TaxiDB.getGpsPoints(summary.shiftId);
+    drawTrack($('#summary-map'), points, $('#summary-map-empty'));
   }
 }
 
@@ -257,12 +478,17 @@ function finishSummary() {
 async function addTripHandler(e) {
   e.preventDefault();
   if (!activeShift) return;
+  if (isOnBreak()) {
+    showToast('Сначала завершите перерыв');
+    return;
+  }
 
   const amount = $('#trip-amount').value;
   const payment = document.querySelector('input[name="payment"]:checked').value;
 
   await TaxiDB.addTrip(activeShift.id, amount, payment);
   closeModal('modal-trip');
+  playCoinSound();
   vibrate([25, 20, 25]);
   showToast(`+${amount} ₽`);
   await refreshShiftLists();
@@ -286,8 +512,10 @@ async function addExpenseHandler(e) {
 }
 
 async function refreshShiftUI() {
+  if (!unlocked) return;
+
   if (pendingSummary) {
-    showShiftSummary(pendingSummary);
+    await showShiftSummary(pendingSummary);
     return;
   }
 
@@ -299,8 +527,16 @@ async function refreshShiftUI() {
     $('#no-shift').classList.add('hidden');
     $('#active-shift').classList.remove('hidden');
     badge.classList.remove('hidden');
+    updatePauseUI();
 
-    if (!tracker.watchId) {
+    if (isOnBreak()) {
+      tracker.pause();
+      if (tracker.shiftId !== activeShift.id) {
+        tracker.shiftId = activeShift.id;
+        tracker.totalKm = activeShift.distanceKm || 0;
+      }
+      setGpsStatus('', 'GPS: пауза на перерыве');
+    } else if (!tracker.isTracking() || tracker.shiftId !== activeShift.id) {
       try {
         await tracker.start(activeShift.id, activeShift.distanceKm || 0);
         setGpsStatus('active', 'GPS: отслеживание активно');
@@ -318,18 +554,21 @@ async function refreshShiftUI() {
     badge.classList.add('hidden');
     tracker.stop();
     clearInterval(liveTimer);
+    liveTimer = null;
   }
 }
 
 function startLiveTimer() {
   if (liveTimer) return;
-  liveTimer = setInterval(updateLiveTime, 30000);
+  liveTimer = setInterval(() => {
+    updateLiveTime();
+  }, 15000);
   updateLiveTime();
 }
 
 function updateLiveTime() {
   if (!activeShift) return;
-  const mins = (Date.now() - activeShift.startedAt) / 60000;
+  const mins = TaxiDB.getShiftMinutes(activeShift);
   $('#live-time').textContent = TaxiReports.formatDuration(mins);
 }
 
@@ -343,6 +582,7 @@ async function updateLiveStats() {
   $('#live-commission').textContent = TaxiReports.formatMoney(stats.commission);
   $('#live-trips-count').textContent = `${stats.totalTrips} ${pluralTrips(stats.totalTrips)}`;
   $('#trip-count').textContent = stats.totalTrips;
+  updateLiveTime();
 
   const goal = activeShift.goal || loadSettings().goal || 0;
   const goalBlock = $('#goal-block');
@@ -362,6 +602,87 @@ function pluralTrips(n) {
   if (mod10 === 1 && mod100 !== 11) return 'поездка';
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'поездки';
   return 'поездок';
+}
+
+function drawTrack(canvas, points, emptyEl) {
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  const styles = getComputedStyle(document.documentElement);
+  const bg = styles.getPropertyValue('--surface2').trim() || '#2a3444';
+  const line = styles.getPropertyValue('--accent').trim() || '#efc014';
+  const muted = styles.getPropertyValue('--muted').trim() || '#8b97a8';
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+
+  if (!points || points.length < 2) {
+    if (emptyEl) emptyEl.classList.remove('hidden');
+    canvas.classList.add('hidden');
+    return;
+  }
+
+  if (emptyEl) emptyEl.classList.add('hidden');
+  canvas.classList.remove('hidden');
+
+  const lats = points.map((p) => p.lat);
+  const lngs = points.map((p) => p.lng);
+  let minLat = Math.min(...lats);
+  let maxLat = Math.max(...lats);
+  let minLng = Math.min(...lngs);
+  let maxLng = Math.max(...lngs);
+  if (maxLat === minLat) {
+    minLat -= 0.001;
+    maxLat += 0.001;
+  }
+  if (maxLng === minLng) {
+    minLng -= 0.001;
+    maxLng += 0.001;
+  }
+
+  const pad = 18;
+  const project = (p) => {
+    const x = pad + ((p.lng - minLng) / (maxLng - minLng)) * (w - pad * 2);
+    const y = pad + (1 - (p.lat - minLat) / (maxLat - minLat)) * (h - pad * 2);
+    return { x, y };
+  };
+
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  points.forEach((p, i) => {
+    const { x, y } = project(p);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  const start = project(points[0]);
+  const end = project(points[points.length - 1]);
+  ctx.fillStyle = '#3dd68c';
+  ctx.beginPath();
+  ctx.arc(start.x, start.y, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ff6b6b';
+  ctx.beginPath();
+  ctx.arc(end.x, end.y, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = muted;
+  ctx.font = '12px Manrope, sans-serif';
+  ctx.fillText('старт', start.x + 8, start.y - 6);
+  ctx.fillText('сейчас', end.x + 8, end.y - 6);
+}
+
+async function showLiveMap() {
+  if (!activeShift) return;
+  const points = await TaxiDB.getGpsPoints(activeShift.id);
+  drawTrack($('#live-map'), points, $('#live-map-empty'));
+  openModal('modal-map');
 }
 
 async function refreshShiftLists() {
@@ -509,7 +830,7 @@ async function renderReport() {
         <div class="report-item"><div class="report-item-label">Время в сменах</div><div class="report-item-value">${TaxiReports.formatDuration(stats.shiftMinutes)}</div></div>
         <div class="report-item"><div class="report-item-label">Доход / км</div><div class="report-item-value">${TaxiReports.formatMoney(stats.incomePerKm)}</div></div>
         <div class="report-item"><div class="report-item-label">Чистыми / км</div><div class="report-item-value green">${TaxiReports.formatMoney(stats.netPerKm)}</div></div>
-        <div class="report-item"><div class="report-item-label">Чистыми / час</div><div class="report-item-value green">${TaxiReports.formatMoney(stats.netPerHour)}</div></div>
+        <div class="report-item"><div class="report-item-label">Чистыми / час</div><div class="report-item-value green">${TaxiReports.formatPerHour(stats.netPerHour)}</div></div>
         <div class="report-item"><div class="report-item-label">Смен</div><div class="report-item-value">${shiftReports.length}</div></div>
       </div>
     </div>
@@ -565,11 +886,12 @@ async function renderHistory() {
 }
 
 async function openHistoryDetail(shiftId) {
-  const [shift, trips, expenses, stats] = await Promise.all([
+  const [shift, trips, expenses, stats, points] = await Promise.all([
     TaxiDB.getShift(shiftId),
     TaxiDB.getTripsByShift(shiftId),
     TaxiDB.getExpensesByShift(shiftId),
-    TaxiDB.getShiftStats(shiftId)
+    TaxiDB.getShiftStats(shiftId),
+    TaxiDB.getGpsPoints(shiftId)
   ]);
 
   if (!shift) return;
@@ -616,6 +938,12 @@ async function openHistoryDetail(shiftId) {
       <div class="summary-item"><span>Поездок</span><strong>${stats.totalTrips}</strong></div>
       <div class="summary-item"><span>Комиссия</span><strong>−${TaxiReports.formatMoney(stats.commission)}</strong></div>
       <div class="summary-item"><span>Расходы</span><strong>−${TaxiReports.formatMoney(stats.totalExpenses)}</strong></div>
+      <div class="summary-item"><span>Чистыми / час</span><strong>${TaxiReports.formatPerHour(stats.netPerHour)}</strong></div>
+    </div>
+    <div class="card soft map-card" style="margin:0 0 12px">
+      <h2>Маршрут</h2>
+      <canvas id="history-map" class="track-canvas" width="400" height="200"></canvas>
+      <p id="history-map-empty" class="empty-state hidden">Мало GPS-точек</p>
     </div>
     <div class="card soft" style="margin:0 0 12px">
       <h2>Поездки</h2>
@@ -628,10 +956,13 @@ async function openHistoryDetail(shiftId) {
   `;
 
   openModal('modal-history');
+  requestAnimationFrame(() => {
+    drawTrack($('#history-map'), points, $('#history-map-empty'));
+  });
 }
 
 document.addEventListener('visibilitychange', async () => {
-  if (document.visibilityState === 'visible') {
+  if (document.visibilityState === 'visible' && unlocked) {
     await refreshShiftUI();
   }
 });

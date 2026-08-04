@@ -94,7 +94,10 @@ async function startShift() {
     startedAt: Date.now(),
     endedAt: null,
     distanceKm: 0,
-    note: ''
+    note: '',
+    pausedMs: 0,
+    pauseStartedAt: null,
+    goal: 0
   };
 
   const store = await tx('shifts', 'readwrite');
@@ -106,12 +109,31 @@ async function endShift(shiftId) {
   const shift = await getShift(shiftId);
   if (!shift || shift.status !== 'active') throw new Error('Смена не найдена');
 
+  if (shift.pauseStartedAt) {
+    shift.pausedMs = (shift.pausedMs || 0) + (Date.now() - shift.pauseStartedAt);
+    shift.pauseStartedAt = null;
+  }
+
   shift.status = 'closed';
   shift.endedAt = Date.now();
 
   const store = await tx('shifts', 'readwrite');
   await promisifyRequest(store.put(shift));
   return shift;
+}
+
+function getPausedMs(shift, now = Date.now()) {
+  if (!shift) return 0;
+  let paused = shift.pausedMs || 0;
+  if (shift.pauseStartedAt) paused += now - shift.pauseStartedAt;
+  return paused;
+}
+
+function getShiftMinutes(shift, now = Date.now()) {
+  if (!shift) return 0;
+  const end = shift.endedAt || now;
+  const raw = (end - shift.startedAt - getPausedMs(shift, now)) / 60000;
+  return Math.max(0, raw);
 }
 
 async function updateShiftDistance(shiftId, distanceKm) {
@@ -236,11 +258,10 @@ function calcStats(shiftsOrShift, trips, expenses) {
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
   const distanceKm = shifts.reduce((s, sh) => s + (sh?.distanceKm || 0), 0);
   const net = gross - commission - totalExpenses;
-  const shiftMinutes = shifts.reduce((s, sh) => {
-    if (!sh) return s;
-    const end = sh.endedAt || Date.now();
-    return s + (end - sh.startedAt) / 60000;
-  }, 0);
+  const shiftMinutes = shifts.reduce((s, sh) => s + getShiftMinutes(sh), 0);
+  const MIN_MINUTES_FOR_RATE = 15;
+  const netPerHour =
+    shiftMinutes >= MIN_MINUTES_FOR_RATE ? (net / shiftMinutes) * 60 : null;
 
   return {
     totalTrips,
@@ -254,7 +275,7 @@ function calcStats(shiftsOrShift, trips, expenses) {
     avgTrip: totalTrips ? gross / totalTrips : 0,
     incomePerKm: distanceKm ? gross / distanceKm : 0,
     netPerKm: distanceKm ? net / distanceKm : 0,
-    netPerHour: shiftMinutes ? (net / shiftMinutes) * 60 : 0
+    netPerHour
   };
 }
 
@@ -282,5 +303,7 @@ window.TaxiDB = {
   getGpsPoints,
   getShiftsInRange,
   getShiftStats,
-  calcStats
+  calcStats,
+  getPausedMs,
+  getShiftMinutes
 };
