@@ -1,0 +1,16 @@
+# Android build
+android/.gradle/
+android/local.properties
+android/**/build/
+android/**/*.apk
+android/**/*.ap_
+android/**/*.dex
+android/captures/
+*.iml
+.idea/
+.DS_Store
+*.log
+
+# Local / OS
+Thumbs.db
+desktop.ini

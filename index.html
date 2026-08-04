@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#f5c518">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Taxi Смена</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <h1>Taxi Смена</h1>
+      <div id="shift-badge" class="shift-badge hidden">Смена активна</div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="shift">Смена</button>
+      <button class="tab" data-tab="reports">Отчёты</button>
+      <button class="tab" data-tab="history">История</button>
+    </nav>
+
+    <main>
+      <!-- СМЕНА -->
+      <section id="tab-shift" class="tab-panel active">
+        <div id="no-shift" class="card center">
+          <p class="muted">Смена не открыта</p>
+          <button id="btn-start-shift" class="btn btn-primary btn-lg">Открыть смену</button>
+          <p class="hint">GPS будет считать километраж автоматически</p>
+        </div>
+
+        <div id="active-shift" class="hidden">
+          <div class="card stats-grid">
+            <div class="stat">
+              <span class="stat-label">Пробег</span>
+              <span id="live-km" class="stat-value">0.0 км</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Время</span>
+              <span id="live-time" class="stat-value">0 мин</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Заработок</span>
+              <span id="live-gross" class="stat-value accent">0 ₽</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Чистыми</span>
+              <span id="live-net" class="stat-value">0 ₽</span>
+            </div>
+          </div>
+
+          <div id="gps-status" class="gps-status">GPS: ожидание...</div>
+
+          <div class="card">
+            <h2>Новая поездка</h2>
+            <form id="trip-form">
+              <label>Сумма, ₽</label>
+              <input type="number" id="trip-amount" inputmode="decimal" min="1" step="1" placeholder="450" required>
+              <label>Способ оплаты</label>
+              <div class="payment-btns">
+                <label class="pay-btn"><input type="radio" name="payment" value="cash" checked><span>Нал</span></label>
+                <label class="pay-btn"><input type="radio" name="payment" value="card"><span>Карта</span></label>
+                <label class="pay-btn"><input type="radio" name="payment" value="app"><span>Приложение</span></label>
+              </div>
+              <p class="hint">Комиссия: −30 ₽ с каждого заказа</p>
+              <button type="submit" class="btn btn-primary btn-block">Добавить поездку</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <h2>Расход</h2>
+            <form id="expense-form">
+              <label>Категория</label>
+              <select id="expense-category">
+                <option value="fuel">Бензин</option>
+                <option value="wash">Мойка</option>
+                <option value="rent">Аренда авто</option>
+                <option value="other">Прочее</option>
+              </select>
+              <label>Сумма, ₽</label>
+              <input type="number" id="expense-amount" inputmode="decimal" min="1" step="1" placeholder="500" required>
+              <label>Комментарий (необяз.)</label>
+              <input type="text" id="expense-note" placeholder="АЗС Лукойл">
+              <button type="submit" class="btn btn-secondary btn-block">Добавить расход</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <h2>Поездки смены <span id="trip-count" class="badge">0</span></h2>
+            <ul id="trip-list" class="list"></ul>
+          </div>
+
+          <div class="card">
+            <h2>Расходы смены</h2>
+            <ul id="expense-list" class="list"></ul>
+          </div>
+
+          <button id="btn-end-shift" class="btn btn-danger btn-block btn-lg">Закрыть смену</button>
+        </div>
+      </section>
+
+      <!-- ОТЧЁТЫ -->
+      <section id="tab-reports" class="tab-panel">
+        <div class="card">
+          <h2>Период</h2>
+          <div class="period-btns">
+            <button class="period-btn active" data-period="today">Сегодня</button>
+            <button class="period-btn" data-period="yesterday">Вчера</button>
+            <button class="period-btn" data-period="week">Неделя</button>
+            <button class="period-btn" data-period="month">Месяц</button>
+            <button class="period-btn" data-period="custom">Свой</button>
+          </div>
+          <div id="custom-period" class="custom-period hidden">
+            <label>С</label>
+            <input type="date" id="period-from">
+            <label>По</label>
+            <input type="date" id="period-to">
+            <button id="btn-apply-period" class="btn btn-secondary btn-block">Применить</button>
+          </div>
+        </div>
+
+        <div id="report-content"></div>
+      </section>
+
+      <!-- ИСТОРИЯ -->
+      <section id="tab-history" class="tab-panel">
+        <div id="history-list" class="history-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="js/db.js"></script>
+  <script src="js/gps.js"></script>
+  <script src="js/reports.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
