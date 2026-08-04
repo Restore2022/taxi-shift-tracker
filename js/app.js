@@ -226,7 +226,7 @@ function showShiftSummary(summary) {
     <div class="summary-item"><span>Время</span><strong>${TaxiReports.formatDuration(summary.shiftMinutes)}</strong></div>
     <div class="summary-item"><span>Пробег</span><strong>${TaxiReports.formatKm(summary.distanceKm)}</strong></div>
     <div class="summary-item"><span>Поездок</span><strong>${summary.totalTrips}</strong></div>
-    <div class="summary-item"><span>Вал</span><strong>${TaxiReports.formatMoney(summary.gross)}</strong></div>
+    <div class="summary-item"><span>Всего</span><strong>${TaxiReports.formatMoney(summary.gross)}</strong></div>
     <div class="summary-item"><span>Наличные</span><strong>${TaxiReports.formatMoney(summary.byPayment.cash)}</strong></div>
     <div class="summary-item"><span>Карта</span><strong>${TaxiReports.formatMoney(summary.byPayment.card)}</strong></div>
     <div class="summary-item"><span>Приложение</span><strong>${TaxiReports.formatMoney(summary.byPayment.app)}</strong></div>
@@ -612,7 +612,7 @@ async function openHistoryDetail(shiftId) {
     </div>
     <div class="detail-net">${TaxiReports.formatMoney(stats.net)}</div>
     <div class="summary-grid" style="margin-bottom:16px">
-      <div class="summary-item"><span>Вал</span><strong>${TaxiReports.formatMoney(stats.gross)}</strong></div>
+      <div class="summary-item"><span>Всего</span><strong>${TaxiReports.formatMoney(stats.gross)}</strong></div>
       <div class="summary-item"><span>Поездок</span><strong>${stats.totalTrips}</strong></div>
       <div class="summary-item"><span>Комиссия</span><strong>−${TaxiReports.formatMoney(stats.commission)}</strong></div>
       <div class="summary-item"><span>Расходы</span><strong>−${TaxiReports.formatMoney(stats.totalExpenses)}</strong></div>
