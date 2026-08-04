@@ -26,10 +26,14 @@ jobs:
 
       - name: Sync web assets
         run: |
-          mkdir -p app/src/main/assets/css app/src/main/assets/js
+          mkdir -p app/src/main/assets/css/fonts app/src/main/assets/js app/src/main/assets/icons
           cp ../index.html app/src/main/assets/index.html
           cp ../css/styles.css app/src/main/assets/css/styles.css
+          cp ../css/fonts/*.woff2 app/src/main/assets/css/fonts/ 2>/dev/null || true
           cp ../js/*.js app/src/main/assets/js/
+          cp ../manifest.json app/src/main/assets/manifest.json 2>/dev/null || true
+          cp ../sw.js app/src/main/assets/sw.js 2>/dev/null || true
+          cp ../icons/* app/src/main/assets/icons/ 2>/dev/null || true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3

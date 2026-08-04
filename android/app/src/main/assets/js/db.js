@@ -11,8 +11,10 @@ const PAYMENT_LABELS = {
 const EXPENSE_LABELS = {
   fuel: 'Бензин',
   wash: 'Мойка',
-  rent: 'Аренда авто',
-  other: 'Прочее'
+  food: 'Еда',
+  parking: 'Парковка',
+  other: 'Прочее',
+  rent: 'Аренда авто'
 };
 
 let db = null;
@@ -118,6 +120,15 @@ async function updateShiftDistance(shiftId, distanceKm) {
   shift.distanceKm = distanceKm;
   const store = await tx('shifts', 'readwrite');
   await promisifyRequest(store.put(shift));
+}
+
+async function updateShiftMeta(shiftId, patch) {
+  const shift = await getShift(shiftId);
+  if (!shift) return null;
+  Object.assign(shift, patch);
+  const store = await tx('shifts', 'readwrite');
+  await promisifyRequest(store.put(shift));
+  return shift;
 }
 
 async function addTrip(shiftId, amount, paymentMethod) {
@@ -258,6 +269,7 @@ window.TaxiDB = {
   startShift,
   endShift,
   updateShiftDistance,
+  updateShiftMeta,
   addTrip,
   deleteTrip,
   getTripsByShift,

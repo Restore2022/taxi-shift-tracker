@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#f5c518">
+  <meta name="theme-color" content="#12161c">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <title>Taxi Смена</title>
@@ -15,8 +15,14 @@
 <body>
   <div id="app">
     <header class="header">
-      <h1>Taxi Смена</h1>
-      <div id="shift-badge" class="shift-badge hidden">Смена активна</div>
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <h1>Taxi Смена</h1>
+      </div>
+      <div class="header-actions">
+        <div id="shift-badge" class="shift-badge hidden">В смене</div>
+        <button id="btn-theme" class="icon-btn" type="button" aria-label="Тема" title="Тема">◐</button>
+      </div>
     </header>
 
     <nav class="tabs">
@@ -26,112 +32,182 @@
     </nav>
 
     <main>
-      <!-- СМЕНА -->
       <section id="tab-shift" class="tab-panel active">
-        <div id="no-shift" class="card center">
-          <p class="muted">Смена не открыта</p>
-          <button id="btn-start-shift" class="btn btn-primary btn-lg">Открыть смену</button>
-          <p class="hint">GPS будет считать километраж автоматически</p>
+        <div id="no-shift" class="idle-screen">
+          <div class="idle-glow" aria-hidden="true"></div>
+          <p class="idle-kicker">Готов к выезду</p>
+          <h2 class="idle-title">Смена не открыта</h2>
+          <p class="idle-text">GPS посчитает пробег. Поездки и расходы — в пару касаний.</p>
+          <div class="goal-setup">
+            <label for="goal-input">Цель на смену, ₽</label>
+            <input type="number" id="goal-input" inputmode="numeric" min="0" step="100" placeholder="например 5000">
+          </div>
+          <button id="btn-start-shift" class="btn btn-primary btn-lg btn-block">Открыть смену</button>
         </div>
 
         <div id="active-shift" class="hidden">
-          <div class="card stats-grid">
-            <div class="stat">
+          <div class="hero-card">
+            <div class="hero-label">Чистыми сейчас</div>
+            <div id="live-net" class="hero-value">0 ₽</div>
+            <div class="hero-sub">
+              <span id="live-gross">0 ₽</span> валом
+              <span class="dot">·</span>
+              <span id="live-trips-count">0 поездок</span>
+            </div>
+            <div id="goal-block" class="goal-block hidden">
+              <div class="goal-row">
+                <span>Цель смены</span>
+                <span id="goal-text">0 / 0 ₽</span>
+              </div>
+              <div class="goal-track"><div id="goal-fill" class="goal-fill"></div></div>
+            </div>
+          </div>
+
+          <div class="stats-row">
+            <div class="stat-chip">
               <span class="stat-label">Пробег</span>
               <span id="live-km" class="stat-value">0.0 км</span>
             </div>
-            <div class="stat">
+            <div class="stat-chip">
               <span class="stat-label">Время</span>
               <span id="live-time" class="stat-value">0 мин</span>
             </div>
-            <div class="stat">
-              <span class="stat-label">Заработок</span>
-              <span id="live-gross" class="stat-value accent">0 ₽</span>
-            </div>
-            <div class="stat">
-              <span class="stat-label">Чистыми</span>
-              <span id="live-net" class="stat-value">0 ₽</span>
+            <div class="stat-chip">
+              <span class="stat-label">Комиссия</span>
+              <span id="live-commission" class="stat-value">0 ₽</span>
             </div>
           </div>
 
           <div id="gps-status" class="gps-status">GPS: ожидание...</div>
 
-          <div class="card">
-            <h2>Новая поездка</h2>
-            <form id="trip-form">
-              <label>Сумма, ₽</label>
-              <input type="number" id="trip-amount" inputmode="decimal" min="1" step="1" placeholder="450" required>
-              <label>Способ оплаты</label>
-              <div class="payment-btns">
-                <label class="pay-btn"><input type="radio" name="payment" value="cash" checked><span>Нал</span></label>
-                <label class="pay-btn"><input type="radio" name="payment" value="card"><span>Карта</span></label>
-                <label class="pay-btn"><input type="radio" name="payment" value="app"><span>Приложение</span></label>
-              </div>
-              <p class="hint">Комиссия: −30 ₽ с каждого заказа</p>
-              <button type="submit" class="btn btn-primary btn-block">Добавить поездку</button>
-            </form>
+          <div class="action-row">
+            <button id="btn-open-trip" class="btn btn-primary action-btn" type="button">+ Поездка</button>
+            <button id="btn-open-expense" class="btn btn-secondary action-btn" type="button">+ Расход</button>
           </div>
 
-          <div class="card">
-            <h2>Расход</h2>
-            <form id="expense-form">
-              <label>Категория</label>
-              <select id="expense-category">
-                <option value="fuel">Бензин</option>
-                <option value="wash">Мойка</option>
-                <option value="rent">Аренда авто</option>
-                <option value="other">Прочее</option>
-              </select>
-              <label>Сумма, ₽</label>
-              <input type="number" id="expense-amount" inputmode="decimal" min="1" step="1" placeholder="500" required>
-              <label>Комментарий (необяз.)</label>
-              <input type="text" id="expense-note" placeholder="АЗС Лукойл">
-              <button type="submit" class="btn btn-secondary btn-block">Добавить расход</button>
-            </form>
-          </div>
-
-          <div class="card">
-            <h2>Поездки смены <span id="trip-count" class="badge">0</span></h2>
+          <div class="card soft">
+            <div class="card-head">
+              <h2>Последние поездки</h2>
+              <span id="trip-count" class="badge">0</span>
+            </div>
             <ul id="trip-list" class="list"></ul>
           </div>
 
-          <div class="card">
-            <h2>Расходы смены</h2>
+          <div class="card soft">
+            <div class="card-head">
+              <h2>Расходы</h2>
+            </div>
             <ul id="expense-list" class="list"></ul>
           </div>
 
-          <button id="btn-end-shift" class="btn btn-danger btn-block btn-lg">Закрыть смену</button>
+          <button id="btn-end-shift" class="btn btn-danger btn-block btn-lg" type="button">Закрыть смену</button>
+        </div>
+
+        <div id="shift-summary" class="summary-screen hidden">
+          <p class="summary-kicker">Смена закрыта</p>
+          <h2 class="summary-title">Итог смены</h2>
+          <div id="summary-net" class="summary-net">0 ₽</div>
+          <p class="summary-caption">чистыми</p>
+          <div id="summary-grid" class="summary-grid"></div>
+          <div id="summary-goal" class="summary-goal hidden"></div>
+          <button id="btn-summary-done" class="btn btn-primary btn-block btn-lg" type="button">Готово</button>
         </div>
       </section>
 
-      <!-- ОТЧЁТЫ -->
       <section id="tab-reports" class="tab-panel">
         <div class="card">
           <h2>Период</h2>
           <div class="period-btns">
-            <button class="period-btn active" data-period="today">Сегодня</button>
-            <button class="period-btn" data-period="yesterday">Вчера</button>
-            <button class="period-btn" data-period="week">Неделя</button>
-            <button class="period-btn" data-period="month">Месяц</button>
-            <button class="period-btn" data-period="custom">Свой</button>
+            <button class="period-btn active" data-period="today" type="button">Сегодня</button>
+            <button class="period-btn" data-period="yesterday" type="button">Вчера</button>
+            <button class="period-btn" data-period="week" type="button">Неделя</button>
+            <button class="period-btn" data-period="month" type="button">Месяц</button>
+            <button class="period-btn" data-period="custom" type="button">Свой</button>
           </div>
           <div id="custom-period" class="custom-period hidden">
             <label>С</label>
             <input type="date" id="period-from">
             <label>По</label>
             <input type="date" id="period-to">
-            <button id="btn-apply-period" class="btn btn-secondary btn-block">Применить</button>
+            <button id="btn-apply-period" class="btn btn-secondary btn-block" type="button">Применить</button>
           </div>
         </div>
-
         <div id="report-content"></div>
       </section>
 
-      <!-- ИСТОРИЯ -->
       <section id="tab-history" class="tab-panel">
         <div id="history-list" class="history-list"></div>
       </section>
     </main>
+  </div>
+
+  <!-- Trip modal -->
+  <div id="modal-trip" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="modal-trip"></div>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2>Новая поездка</h2>
+      <form id="trip-form">
+        <label>Сумма, ₽</label>
+        <input type="number" id="trip-amount" inputmode="decimal" min="1" step="1" placeholder="450" required>
+        <div class="quick-amounts" id="quick-amounts">
+          <button type="button" data-amount="150">150</button>
+          <button type="button" data-amount="200">200</button>
+          <button type="button" data-amount="250">250</button>
+          <button type="button" data-amount="300">300</button>
+          <button type="button" data-amount="500">500</button>
+          <button type="button" data-amount="550">550</button>
+        </div>
+        <label>Способ оплаты</label>
+        <div class="payment-btns">
+          <label class="pay-btn"><input type="radio" name="payment" value="cash" checked><span>Нал</span></label>
+          <label class="pay-btn"><input type="radio" name="payment" value="card"><span>Карта</span></label>
+          <label class="pay-btn"><input type="radio" name="payment" value="app"><span>Прилож.</span></label>
+        </div>
+        <p class="hint">Комиссия: −30 ₽ с заказа</p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" data-close="modal-trip">Отмена</button>
+          <button type="submit" class="btn btn-primary">Добавить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Expense modal -->
+  <div id="modal-expense" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="modal-expense"></div>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2>Расход</h2>
+      <form id="expense-form">
+        <label>Категория</label>
+        <div class="category-btns" id="expense-categories">
+          <label class="cat-btn"><input type="radio" name="expense-cat" value="fuel" checked><span>Бензин</span></label>
+          <label class="cat-btn"><input type="radio" name="expense-cat" value="wash"><span>Мойка</span></label>
+          <label class="cat-btn"><input type="radio" name="expense-cat" value="food"><span>Еда</span></label>
+          <label class="cat-btn"><input type="radio" name="expense-cat" value="parking"><span>Парковка</span></label>
+          <label class="cat-btn"><input type="radio" name="expense-cat" value="other"><span>Прочее</span></label>
+        </div>
+        <label>Сумма, ₽</label>
+        <input type="number" id="expense-amount" inputmode="decimal" min="1" step="1" placeholder="500" required>
+        <label>Комментарий (необяз.)</label>
+        <input type="text" id="expense-note" placeholder="АЗС Лукойл">
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" data-close="modal-expense">Отмена</button>
+          <button type="submit" class="btn btn-primary">Добавить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- History detail modal -->
+  <div id="modal-history" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="modal-history"></div>
+    <div class="modal-sheet modal-sheet-tall">
+      <div class="modal-handle"></div>
+      <div id="history-detail"></div>
+      <button type="button" class="btn btn-secondary btn-block" data-close="modal-history">Закрыть</button>
+    </div>
   </div>
 
   <div id="toast" class="toast hidden"></div>
