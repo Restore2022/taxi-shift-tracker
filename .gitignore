@@ -14,3 +14,6 @@ android/captures/
 # Local / OS
 Thumbs.db
 desktop.ini
+
+# Keep release.keystore in repo for sideload builds
+!android/app/release.keystore
